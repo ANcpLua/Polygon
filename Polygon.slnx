@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Polygon.Tests/Polygon.Tests.csproj" />
+  <Project Path="Polygon/Polygon.csproj" />
+</Solution>

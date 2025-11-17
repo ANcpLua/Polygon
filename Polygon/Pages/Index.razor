@@ -1,0 +1,95 @@
+@page "/"
+@using static LanguageExt.Prelude
+@using JetBrains.Annotations
+
+<PageTitle>Polygon Drawing - C# Blazor</PageTitle>
+
+<div style="user-select: none;">
+    <h1>Polygon Drawing (C# Blazor WebAssembly + LanguageExt)</h1>
+
+    <div>
+        <button style="margin: 20px;" @onclick="HandleUndo" disabled="@(!_history.CanUndo)">
+            Undo @(_history.Past.Any() ? $"({_history.Past.Count()})" : "")
+        </button>
+        <button style="margin: 20px;" @onclick="HandleRedo" disabled="@(!_history.CanRedo)">
+            Redo @(_history.Future.Any() ? $"({_history.Future.Count()})" : "")
+        </button>
+        <span style="margin-left: 20px; color: #666;">
+            Click to add vertices | Double-click to finish polygon
+        </span>
+    </div>
+
+    <svg width="500" height="500"
+         @onmousemove="HandleMouseMove"
+         @onclick="HandleClick"
+         @onclick:preventDefault="true"
+         style="border: 2px solid black; cursor: crosshair;">
+
+        @* Border *@
+        <rect x="0" y="0" width="500" height="500"
+              fill="none" stroke="black" stroke-width="2"/>
+
+        @foreach (var polygon in _history.Present.FinishedPolygons)
+        {
+            <polyline points="@ToSvgPoints(polygon)"
+                      fill="none"
+                      stroke="green"
+                      stroke-width="2"
+                      stroke-linejoin="round"/>
+        }
+
+        @if (_history.Present.CurrentPolygon.IsSome)
+        {
+            var current = _history.Present.CurrentPolygon.IfNone(PolyLine.Empty);
+            var withPreview = _history.Present.MousePos.Match(
+                Some: mousePos => current.Prepend(mousePos),
+                None: () => current
+            );
+            <polyline points="@ToSvgPoints(withPreview)"
+                      fill="none"
+                      stroke="red"
+                      stroke-width="2"
+                      stroke-linejoin="round"/>
+        }
+    </svg>
+
+    <div style="margin-top: 20px; color: #666;">
+        <p>
+            <strong>State:</strong>
+            Finished: @_history.Present.FinishedPolygons.Count() polygons |
+            Current: @(_history.Present.CurrentPolygon.Match(Some: p => p.Points.Count(), None: () => 0)) vertices |
+            Undo stack: @_history.Past.Count() |
+            Redo stack: @_history.Future.Count()
+        </p>
+    </div>
+</div>
+
+@code {
+    private History<DrawingModel> _history = AppUpdate.Init();
+
+    private void HandleClick(MouseEventArgs e)
+    {
+        Dispatch(new Msg.AddPoint(new Coord(e.OffsetX, e.OffsetY), DateTime.Now));
+    }
+
+
+    private void HandleMouseMove(MouseEventArgs e)
+    {
+        Dispatch(new Msg.SetCursorPos(Some(new Coord(e.OffsetX, e.OffsetY))));
+    }
+
+    private void HandleUndo() => Dispatch(new Msg.Undo());
+    private void HandleRedo() => Dispatch(new Msg.Redo());
+
+    private void Dispatch(Msg msg)
+    {
+        _history = AppUpdate.Update(msg, _history);
+    }
+
+    [Pure]
+    private static string ToSvgPoints(PolyLine poly)
+    {
+        return poly.Points.IsEmpty ? string.Empty : string.Join(" ", poly.Points.Select(pt => $"{pt.X},{pt.Y}"));
+    }
+
+}
